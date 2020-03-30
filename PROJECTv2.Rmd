@@ -1,0 +1,93 @@
+---
+title: "Projectv2"
+author: "IwinN"
+date: "March 29, 2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+cd<-read.csv("D:\\DataAnalysisRyerson\\CIND119\\Final Project\\german_credit_card\\german_credit.csv")
+cd$Creditability <- factor(ifelse(cd$Creditability==1, 0, 1))
+levels(cd$Creditability) <- c('No', 'Yes')
+summary(cd)
+```
+```{r}
+prop.table(table(cd$Creditability))
+```
+```{r}
+install.packages("caret")%/%library(caret)
+
+```
+```{r}
+in_train <- createDataPartition(cd$Creditability, p = 0.66, list = FALSE)
+train_set <- cd[in_train,]
+test_set <- cd[-in_train,]
+```
+
+```{r}
+prop.table(table(train_set$Creditability))
+```
+```{r}
+prop.table(table(test_set$Creditability))
+```
+
+```{r}
+pvalue.coef <- function(mdl)
+ {
+ dum <- summary(mdl)$coefficients
+ dum <- dum[,'Pr(>|z|)']
+ return(dum)
+ }
+```
+
+```{r}
+cv_nonimpvar <- function(fml, folds)
+{
+  rs <- lapply(folds, function(x)
+  {
+    train_set_train <- train_set[-x, ]
+    mdl <- glm(formula = fml, family = binomial(link=logit), data = train_set_train)
+    nonimpvar <- pvalue.coef(mdl)
+    return(nonimpvar)
+  })
+vars_name <- all.vars(fml[[3]])
+rs_matrix <- matrix(unlist(rs), nrow=length(vars_name)+1 )
+colnames(rs_matrix) <- c(paste0('Fold0',1:9),'Fold10')
+rownames(rs_matrix) <- c('Intercept', vars_name)
+return(rs_matrix)
+}
+
+
+n.cv <- 100
+eval_model_nonimpvar <- function(fml)
+{
+  t.mat <- NULL
+  for (i in 1:n.cv)
+  {
+    folds.new <- createFolds(train_set$default, k = 10)
+    cv_var_op <- cv_nonimpvar(fml, folds.new)
+    t.mat <- cbind(t.mat, cv_var_op)
+  }
+
+  dum <- apply(t.mat, 1, mean)
+  id <- order(dum, decreasing = T)
+  boxplot(t(t.mat[id,]), las=2, main=fml, ylim=c(0,.2))
+  points(dum[id], pch=20, cex=1, col='red')
+  return(t.mat)
+}
+```
+
+```{r}
+fml0 <- Creditability ~ Account.Balance+Duration.of.Credit..month+Payment.Status.of.Previous.Credit+Guarantors+Credit.Amount+Value.Savings.Stocks+Purpose+Length.of.current.employment+Instalment.per.cent+Sex...Marital.Status+Duration.in.Current.address+Most.valuable.available.asset+Age..years+Concurrent.Credits+Type.of.apartment+No.of.Credits.at.this.Bank+Occupation+No.of.dependents+Telephone+Foreign.Worker
+
+#nonimpvar0.mat <- eval_model_nonimpvar(fml0)
+```
+
+```{r}
+nonimpvar0.mat <- eval_model_nonimpvar(fml0)
+```
+
